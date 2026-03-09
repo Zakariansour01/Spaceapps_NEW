@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OrthoViz — 3D Sculpting</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: #0a0d14;
+            font-family: 'IBM Plex Mono', monospace;
+            color: #e0eaf0;
+            overflow: hidden
+        }
+
+        #app {
+            display: flex;
+            width: 100vw;
+            height: 100vh
+        }
+
+        /* PANEL */
+        #panel {
+            width: 290px;
+            min-width: 290px;
+            background: #0d1221;
+            border-right: 1px solid #1a2640;
+            display: flex;
+            flex-direction: column;
+            padding: 18px;
+            gap: 14px;
+            overflow-y: auto
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .logo-box {
+            width: 26px;
+            height: 26px;
+            background: linear-gradient(135deg, #00d4ff, #0055aa);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0
+        }
+
+        .logo-name {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: .12em
+        }
+
+        .logo-name b {
+            color: #00d4ff
+        }
+
+        .logo-sub {
+            font-size: 9px;
+            color: #2a4560;
+            letter-spacing: .1em;
+            margin-top: 1px
+        }
+
+        /* Steps */
+        .steps {
+            background: #080b12;
+            border-radius: 8px;
+            padding: 12px
+        }
+
+        .steps-hdr {
+            font-size: 9px;
+            color: #2a4560;
+            letter-spacing: .15em;
+            margin-bottom: 10px
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 5px 0
+        }
+
+        .step+.step {
+            border-top: 1px solid #0f1828
+        }
+
+        .step-num {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #1a2640;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 700;
+            color: #2a4560;
+            flex-shrink: 0;
+            transition: all .3s
+        }
+
+        .step-num.active {
+            border-color: #00d4ff;
+            color: #00d4ff;
+            box-shadow: 0 0 8px #00d4ff55
+        }
+
+        .step-num.done {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #000
+        }
+
+        .step.s2 .step-num.done {
+            background: #ff6b35;
+            border-color: #ff6b35
+        }
+
+        .step.s3 .step-num.done {
+            background: #7fff6b;
+            border-color: #7fff6b
+        }
+
+        .step-info {}
+
+        .step-name {
+            font-size: 10px;
+            font-weight: 600;
+            color: #2a4560;
+            transition: color .3s
+        }
+
+        .step-name.active,
+        .step-name.done {
+            color: #e0eaf0
+        }
+
+        .step-axis {
+            font-size: 9px;
+            color: #1a2e40
+        }
+
+        /* Upload */
+        .view-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 8px
+        }
+
+        .view-title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .1em
+        }
+
+        .view-axis {
+            font-size: 9px;
+            color: #2a4560
+        }
+
+        #dropzone {
+            border: 2px dashed #1a2640;
+            border-radius: 8px;
+            height: 110px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all .2s;
+            overflow: hidden;
+            position: relative;
+            background: #080b12
+        }
+
+        #dropzone:hover,
+        #dropzone.over {
+            border-color: #00d4ff;
+            background: #0b1520
+        }
+
+        #dropzone.hasfile {
+            border-style: solid;
+            border-color: #00d4ff44;
+            height: 130px
+        }
+
+        #dropzone img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none
+        }
+
+        #dropzone .dz-text {
+            font-size: 10px;
+            color: #1a3050
+        }
+
+        #dropzone .dz-sub {
+            font-size: 9px;
+            color: #0f1e2e
+        }
+
+        #file-inp {
+            display: none
+        }
+
+        .tip {
+            background: #060910;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 9px;
+            color: #1a3050;
+            line-height: 1.8;
+            margin-top: 8px
+        }
+
+        #btn-carve {
+            margin-top: 10px;
+            width: 100%;
+            padding: 11px;
+            border: none;
+            border-radius: 7px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .1em;
+            cursor: not-allowed;
+            opacity: .35;
+            background: #0d1828;
+            color: #1a3050;
+            transition: all .15s
+        }
+
+        #btn-carve.ready {
+            cursor: pointer;
+            opacity: 1
+        }
+
+        #btn-carve.ready:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1)
+        }
+
+        /* Done */
+        #done-area {
+            display: none;
+            text-align: center;
+            animation: fadeUp .3s ease
+        }
+
+        .done-icon {
+            font-size: 26px;
+            margin-bottom: 6px
+        }
+
+        .done-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #ffcc00;
+            letter-spacing: .1em;
+            margin-bottom: 4px
+        }
+
+        .done-sub {
+            font-size: 10px;
+            color: #2a4560;
+            margin-bottom: 12px
+        }
+
+        #btn-reset {
+            width: 100%;
+            padding: 11px;
+            border: none;
+            border-radius: 7px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .1em;
+            cursor: pointer;
+            background: rgba(255, 107, 53, .25);
+            color: #ff6b35;
+            transition: all .15s
+        }
+
+        #btn-reset:hover {
+            filter: brightness(1.2)
+        }
+
+        /* Stats */
+        .stats {
+            margin-top: auto;
+            background: #080b12;
+            border-radius: 8px;
+            padding: 11px
+        }
+
+        .stats-hdr {
+            font-size: 9px;
+            color: #2a4560;
+            letter-spacing: .15em;
+            margin-bottom: 8px
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px
+        }
+
+        .stat-label {
+            font-size: 9px;
+            color: #2a4560
+        }
+
+        .stat-val {
+            font-size: 9px;
+            font-weight: 700
+        }
+
+        .bar {
+            height: 3px;
+            background: #0d1828;
+            border-radius: 2px;
+            margin: 4px 0
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #0066cc);
+            border-radius: 2px;
+            transition: width .4s
+        }
+
+        .stat-res {
+            font-size: 8px;
+            color: #0f1e2e;
+            margin-top: 2px
+        }
+
+        /* VIEWPORT */
+        #viewport {
+            flex: 1;
+            position: relative;
+            cursor: grab
+        }
+
+        #viewport.dragging {
+            cursor: grabbing
+        }
+
+        #canvas-wrap {
+            width: 100%;
+            height: 100%
+        }
+
+        .vp-label {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            font-size: 9px;
+            color: #1a2e40;
+            letter-spacing: .1em;
+            pointer-events: none
+        }
+
+        #view-btns {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px
+        }
+
+        .vbtn {
+            background: transparent;
+            border: 1px solid #1a2640;
+            color: #2a4560;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 9px;
+            cursor: pointer;
+            font-family: 'IBM Plex Mono', monospace;
+            letter-spacing: .08em;
+            transition: all .15s
+        }
+
+        .vbtn:hover {
+            border-color: #00d4ff66;
+            color: #00d4ff88
+        }
+
+        #badge {
+            position: absolute;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 13, 20, .9);
+            border: 1px solid #00d4ff33;
+            border-radius: 7px;
+            padding: 7px 16px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            backdrop-filter: blur(6px)
+        }
+
+        .bdot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+            flex-shrink: 0
+        }
+
+        .btxt {
+            font-size: 10px;
+            letter-spacing: .1em
+        }
+
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(8, 11, 18, .8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none
+        }
+
+        #overlay.show {
+            display: flex
+        }
+
+        .ov-txt {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: .15em;
+            animation: blink .6s infinite;
+            text-align: center
+        }
+
+        .ov-sub {
+            font-size: 9px;
+            color: #2a4560;
+            margin-top: 6px;
+            text-align: center
+        }
+
+        #thumbs {
+            position: absolute;
+            bottom: 18px;
+            right: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px
+        }
+
+        .thumb {
+            width: 48px;
+            height: 48px;
+            border: 1px solid #1a2640;
+            border-radius: 5px;
+            overflow: hidden;
+            opacity: .65
+        }
+
+        .thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: .35
+            }
+
+            50% {
+                opacity: 1
+            }
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .3
+            }
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+
+        <!-- PANEL -->
+        <div id="panel">
+            <div>
+                <div class="logo">
+                    <div class="logo-box">3D</div>
+                    <div>
+                        <div class="logo-name">ORTHO<b>VIZ</b></div>
+                        <div class="logo-sub">VOXEL SCULPTING</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="steps">
+                <div class="steps-hdr">PIPELINE</div>
+                <div class="step s1">
+                    <div class="step-num" id="sn0">1</div>
+                    <div class="step-info">
+                        <div class="step-name" id="sl0">FRONT VIEW</div>
+                        <div class="step-axis">carves along Z axis</div>
+                    </div>
+                </div>
+                <div class="step s2">
+                    <div class="step-num" id="sn1">2</div>
+                    <div class="step-info">
+                        <div class="step-name" id="sl1">TOP VIEW</div>
+                        <div class="step-axis">carves along Y axis</div>
+                    </div>
+                </div>
+                <div class="step s3">
+                    <div class="step-num" id="sn2">3</div>
+                    <div class="step-info">
+                        <div class="step-name" id="sl2">RIGHT VIEW</div>
+                        <div class="step-axis">carves along X axis</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="upload-area">
+                <div class="view-header">
+                    <span class="view-title" id="view-title" style="color:#00d4ff">FRONT VIEW</span>
+                    <span class="view-axis" id="view-axis">looking along Z</span>
+                </div>
+
+                <label id="dropzone">
+                    <input type="file" id="file-inp" accept="image/*" />
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1a3050" stroke-width="1.5"
+                        id="dz-icon">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <line x1="12" y1="8" x2="12" y2="16" />
+                        <line x1="8" y1="12" x2="16" y2="12" />
+                    </svg>
+                    <span class="dz-text" id="dz-text">UPLOAD FRONT VIEW</span>
+                    <span class="dz-sub">drag &amp; drop or click</span>
+                    <img id="dz-preview" alt="preview" />
+                </label>
+
+                <div class="tip" id="tip-box">
+                    <b style="color:#2a4560">HOW IT WORKS:</b><br />
+                    Draw your <b style="color:#e0eaf0">front</b> view in <b style="color:#e0eaf0">black</b> on white
+                    paper.<br />
+                    <span style="color:#00d4ff66">Black = solid &nbsp;·&nbsp; White = carved away</span>
+                </div>
+
+                <button id="btn-carve" disabled>CARVE FRONT VIEW</button>
+            </div>
+
+            <div id="done-area">
+                <div class="done-icon">&#10022;</div>
+                <div class="done-title">MODEL COMPLETE</div>
+                <div class="done-sub">All 3 views applied</div>
+                <button id="btn-reset">&#8635; START OVER</button>
+            </div>
+
+            <div class="stats">
+                <div class="stats-hdr">VOXEL STATS</div>
+                <div class="stat-row"><span class="stat-label">SOLID</span><span class="stat-val" id="sv-solid"
+                        style="color:#00d4ff">8,000</span></div>
+                <div class="stat-row"><span class="stat-label">CARVED</span><span class="stat-val" id="sv-carved"
+                        style="color:#ff6b35">0%</span></div>
+                <div class="bar">
+                    <div class="bar-fill" id="bar-fill" style="width:100%"></div>
+                </div>
+                <div class="stat-res">RESOLUTION: 20 x 20 x 20</div>
+            </div>
+        </div>
+
+        <!-- VIEWPORT -->
+        <div id="viewport">
+            <div id="canvas-wrap"></div>
+            <div class="vp-label">DRAG TO ORBIT &nbsp;·&nbsp; SCROLL TO ZOOM</div>
+            <div id="view-btns">
+                <button class="vbtn" onclick="camPreset('iso')">ISO</button>
+                <button class="vbtn" onclick="camPreset('front')">FRONT</button>
+                <button class="vbtn" onclick="camPreset('top')">TOP</button>
+                <button class="vbtn" onclick="camPreset('right')">RIGHT</button>
+            </div>
+            <div id="badge">
+                <div class="bdot" id="bdot" style="background:#00d4ff"></div>
+                <span class="btxt" id="btxt" style="color:#00d4ff">STEP 1 / 3 — FRONT VIEW</span>
+            </div>
+            <div id="overlay">
+                <div>
+                    <div class="ov-txt" id="ov-txt" style="color:#00d4ff">CARVING...</div>
+                    <div class="ov-sub">Projecting silhouette onto voxel grid</div>
+                </div>
+            </div>
+            <div id="thumbs"></div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════
+        // VOXEL ENGINE
+        // ═══════════════════════════════════════════════
+        const RES = 20;
+        const TOTAL = RES * RES * RES;
+
+        let voxels = new Uint8Array(TOTAL).fill(1);
+
+        function vi(x, y, z) { return x + y * RES + z * RES * RES; }
+
+        // Read image, return flat brightness array (0-255) at RES x RES
+        function sampleSilhouette(imageData) {
+            const { width, height, data } = imageData;
+            const mask = new Uint8Array(RES * RES); // mask[x + y*RES]
+            for (let x = 0; x < RES; x++) {
+                for (let y = 0; y < RES; y++) {
+                    const px = Math.floor((x / RES) * width);
+                    const py = Math.floor(((RES - 1 - y) / RES) * height); // flip Y: y=0 is bottom
+                    const i = (Math.min(py, height - 1) * width + Math.min(px, width - 1)) * 4;
+                    const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    mask[x + y * RES] = brightness < 128 ? 1 : 0; // dark = solid = 1
+                }
+            }
+            return mask;
+        }
+
+        function carveAxis(mask, axis) {
+            const next = new Uint8Array(voxels);
+            for (let x = 0; x < RES; x++) {
+                for (let y = 0; y < RES; y++) {
+                    for (let z = 0; z < RES; z++) {
+                        if (!next[vi(x, y, z)]) continue;
+                        let solid;
+                        if (axis === 'front') solid = mask[x + y * RES]; // front view: X=right, Y=up
+                        else if (axis === 'top') solid = mask[x + z * RES]; // top view:   X=right, Z=depth(shown as Y)
+                        else solid = mask[z + y * RES]; // right view: Z=right-to-left, Y=up
+                        if (!solid) next[vi(x, y, z)] = 0;
+                    }
+                }
+            }
+            voxels = next;
+        }
+
+        function buildGeometry() {
+            const pos = [], nor = [], idx = [];
+            let vc = 0;
+            const cs = 1 / RES;
+
+            const solid = (x, y, z) =>
+                x >= 0 && y >= 0 && z >= 0 && x < RES && y < RES && z < RES && voxels[vi(x, y, z)] === 1;
+
+            function quad(x, y, z, nx, ny, nz, ax, ay, az, bx, by, bz) {
+                const ox = x * cs - 0.5, oy = y * cs - 0.5, oz = z * cs - 0.5;
+                pos.push(
+                    ox, oy, oz,
+                    ox + ax * cs, oy + ay * cs, oz + az * cs,
+                    ox + (ax + bx) * cs, oy + (ay + by) * cs, oz + (az + bz) * cs,
+                    ox + bx * cs, oy + by * cs, oz + bz * cs
+                );
+                for (let i = 0; i < 4; i++) nor.push(nx, ny, nz);
+                idx.push(vc, vc + 1, vc + 2, vc, vc + 2, vc + 3);
+                vc += 4;
+            }
+
+            for (let x = 0; x < RES; x++) for (let y = 0; y < RES; y++) for (let z = 0; z < RES; z++) {
+                if (!solid(x, y, z)) continue;
+                if (!solid(x + 1, y, z)) quad(x + 1, y, z, 1, 0, 0, 0, 1, 0, 0, 0, 1);
+                if (!solid(x - 1, y, z)) quad(x, y, z, -1, 0, 0, 0, 0, 1, 0, 1, 0);
+                if (!solid(x, y + 1, z)) quad(x, y + 1, z, 0, 1, 0, 1, 0, 0, 0, 0, 1);
+                if (!solid(x, y - 1, z)) quad(x, y, z, 0, -1, 0, 0, 0, 1, 1, 0, 0);
+                if (!solid(x, y, z + 1)) quad(x, y, z + 1, 0, 0, 1, 0, 1, 0, 1, 0, 0);
+                if (!solid(x, y, z - 1)) quad(x, y, z, 0, 0, -1, 1, 0, 0, 0, 1, 0);
+            }
+
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+            g.setIndex(idx);
+            return g;
+        }
+
+        // ═══════════════════════════════════════════════
+        // THREE.JS
+        // ═══════════════════════════════════════════════
+        let scene, camera, renderer, mesh;
+        let sph = { theta: .7, phi: 1.0, r: 3.2 };
+
+        function camPos() {
+            camera.position.set(
+                sph.r * Math.sin(sph.phi) * Math.sin(sph.theta),
+                sph.r * Math.cos(sph.phi),
+                sph.r * Math.sin(sph.phi) * Math.cos(sph.theta)
+            );
+            camera.lookAt(0, 0, 0);
+        }
+
+        function camPreset(v) {
+            const P = {
+                iso: { theta: .7, phi: 1.0, r: 3.2 },
+                front: { theta: 0, phi: Math.PI / 2, r: 3.0 },
+                top: { theta: 0, phi: .05, r: 3.2 },
+                right: { theta: Math.PI / 2, phi: Math.PI / 2, r: 3.0 },
+            };
+            Object.assign(sph, P[v]); camPos();
+        }
+
+        function updateMesh() {
+            if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); }
+            mesh = new THREE.Mesh(buildGeometry(), new THREE.MeshPhongMaterial({
+                color: 0x2e6ea6, emissive: 0x061220, specular: 0x66aadd, shininess: 80
+            }));
+            mesh.castShadow = true;
+            scene.add(mesh);
+
+            const solid = voxels.reduce((a, v) => a + v, 0);
+            const pct = Math.round((1 - solid / TOTAL) * 100);
+            document.getElementById('sv-solid').textContent = solid.toLocaleString();
+            document.getElementById('sv-carved').textContent = pct + '%';
+            document.getElementById('bar-fill').style.width = (100 - pct) + '%';
+        }
+
+        function initThree() {
+            const wrap = document.getElementById('canvas-wrap');
+            const W = wrap.clientWidth, H = wrap.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color('#0a0d14');
+
+            camera = new THREE.PerspectiveCamera(42, W / H, .01, 50);
+            camPos();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(W, H);
+            renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            wrap.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0x7799bb, 1.5));
+            const sun = new THREE.DirectionalLight(0xffffff, 2.8);
+            sun.position.set(3, 5, 4); sun.castShadow = true; scene.add(sun);
+            const fill = new THREE.DirectionalLight(0x3366cc, 1.0);
+            fill.position.set(-4, -2, -3); scene.add(fill);
+            const rim = new THREE.DirectionalLight(0xffaa33, .7);
+            rim.position.set(0, -4, 4); scene.add(rim);
+
+            const gridH = new THREE.GridHelper(4, 16, 0x182030, 0x0e1520);
+            gridH.position.y = -.52; scene.add(gridH);
+
+            updateMesh();
+            (function loop() { requestAnimationFrame(loop); renderer.render(scene, camera); })();
+
+            window.addEventListener('resize', () => {
+                const w = wrap.clientWidth, h = wrap.clientHeight;
+                camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+            });
+        }
+
+        // Orbit controls
+        let drag = false, lx = 0, ly = 0;
+        const vp = document.getElementById('viewport');
+        vp.addEventListener('mousedown', e => { drag = true; lx = e.clientX; ly = e.clientY; vp.classList.add('dragging'); });
+        window.addEventListener('mousemove', e => {
+            if (!drag) return;
+            sph.theta -= (e.clientX - lx) * .008;
+            sph.phi = Math.max(.1, Math.min(Math.PI - .1, sph.phi + (e.clientY - ly) * .008));
+            lx = e.clientX; ly = e.clientY;
+            camPos();
+        });
+        window.addEventListener('mouseup', () => { drag = false; vp.classList.remove('dragging'); });
+        vp.addEventListener('wheel', e => {
+            sph.r = Math.max(1, Math.min(8, sph.r + e.deltaY * .003));
+            camPos();
+        }, { passive: true });
+
+        // ═══════════════════════════════════════════════
+        // STAGE MACHINE
+        // ═══════════════════════════════════════════════
+        const STAGES = ['front', 'top', 'right'];
+        const INFO = {
+            front: { label: 'FRONT VIEW', axis: 'looking along Z', color: '#00d4ff', badge: 'STEP 1 / 3 — FRONT VIEW' },
+            top: { label: 'TOP VIEW', axis: 'looking down Y', color: '#ff6b35', badge: 'STEP 2 / 3 — TOP VIEW' },
+            right: { label: 'RIGHT VIEW', axis: 'looking along X', color: '#7fff6b', badge: 'STEP 3 / 3 — RIGHT VIEW' },
+        };
+
+        let currentStage = 'front';
+        let currentFile = null;
+
+        function setStage(s) {
+            currentStage = s;
+            currentFile = null;
+            const info = INFO[s];
+
+            document.getElementById('view-title').textContent = info.label;
+            document.getElementById('view-title').style.color = info.color;
+            document.getElementById('view-axis').textContent = info.axis;
+            document.getElementById('tip-box').innerHTML =
+                `<b style="color:#2a4560">HOW IT WORKS:</b><br/>Draw your <b style="color:#e0eaf0">${s}</b> view in <b style="color:#e0eaf0">black</b> on white.<br/><span style="color:#00d4ff66">Black = solid &nbsp;·&nbsp; White = carved away</span>`;
+
+            // reset dropzone
+            const dz = document.getElementById('dropzone');
+            const prev = document.getElementById('dz-preview');
+            const icon = document.getElementById('dz-icon');
+            const dtxt = document.getElementById('dz-text');
+            prev.style.display = 'none'; prev.src = '';
+            icon.style.display = '';
+            dtxt.style.display = ''; dtxt.textContent = 'UPLOAD ' + info.label;
+            dz.classList.remove('hasfile', 'over');
+            document.getElementById('file-inp').value = '';
+
+            // reset button
+            const btn = document.getElementById('btn-carve');
+            btn.disabled = true;
+            btn.className = '';
+            btn.textContent = 'CARVE ' + info.label;
+            btn.style.background = '#0d1828';
+            btn.style.color = '#1a3050';
+
+            // badge
+            document.getElementById('bdot').style.background = info.color;
+            document.getElementById('btxt').style.color = info.color;
+            document.getElementById('btxt').textContent = info.badge;
+            document.getElementById('badge').style.display = 'flex';
+
+            // pipeline
+            const si = STAGES.indexOf(s);
+            STAGES.forEach((_, i) => {
+                document.getElementById('sn' + i).className = 'step-num' + (i < si ? ' done' : i === si ? ' active' : '');
+                document.getElementById('sl' + i).className = 'step-name' + (i <= si ? ' active' : '');
+            });
+        }
+
+        function loadFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            currentFile = file;
+            const url = URL.createObjectURL(file);
+
+            const prev = document.getElementById('dz-preview');
+            prev.src = url; prev.style.display = 'block';
+            document.getElementById('dz-icon').style.display = 'none';
+            document.getElementById('dz-text').style.display = 'none';
+            document.getElementById('dropzone').classList.add('hasfile');
+
+            const btn = document.getElementById('btn-carve');
+            const info = INFO[currentStage];
+            btn.disabled = false;
+            btn.className = 'ready';
+            btn.style.background = `linear-gradient(135deg,${info.color}cc,${info.color}55)`;
+            btn.style.color = '#000';
+        }
+
+        async function doCarve() {
+            if (!currentFile) return;
+
+            // show overlay
+            const ov = document.getElementById('overlay');
+            document.getElementById('ov-txt').textContent = 'CARVING ' + INFO[currentStage].label + '...';
+            document.getElementById('ov-txt').style.color = INFO[currentStage].color;
+            ov.classList.add('show');
+            await sleep(40); // let browser paint
+
+            // read image
+            const imgData = await readImage(currentFile, 64);
+            const mask = sampleSilhouette(imgData);
+            carveAxis(mask, currentStage);
+            updateMesh();
+
+            ov.classList.remove('show');
+
+            // save thumb
+            addThumb(currentStage, URL.createObjectURL(currentFile));
+
+            // advance
+            const si = STAGES.indexOf(currentStage);
+            const next = STAGES[si + 1];
+            if (next) {
+                if (next === 'top') Object.assign(sph, { theta: .5, phi: .25, r: 3.2 });
+                if (next === 'right') Object.assign(sph, { theta: Math.PI / 2, phi: 1.0, r: 3.0 });
+                camPos();
+                setStage(next);
+            } else {
+                showDone();
+            }
+        }
+
+        function showDone() {
+            document.getElementById('upload-area').style.display = 'none';
+            document.getElementById('done-area').style.display = 'block';
+            document.getElementById('badge').style.display = 'none';
+            STAGES.forEach((_, i) => {
+                document.getElementById('sn' + i).className = 'step-num done';
+                document.getElementById('sl' + i).className = 'step-name done';
+            });
+            Object.assign(sph, { theta: .7, phi: .9, r: 3.0 }); camPos();
+        }
+
+        function resetAll() {
+            voxels = new Uint8Array(TOTAL).fill(1);
+            currentFile = null;
+            document.getElementById('upload-area').style.display = 'block';
+            document.getElementById('done-area').style.display = 'none';
+            document.getElementById('thumbs').innerHTML = '';
+            updateMesh();
+            Object.assign(sph, { theta: .7, phi: 1.0, r: 3.2 }); camPos();
+            setStage('front');
+        }
+
+        function addThumb(s, url) {
+            const d = document.createElement('div'); d.className = 'thumb'; d.title = s + ' view';
+            const i = document.createElement('img'); i.src = url; i.alt = s;
+            d.appendChild(i); document.getElementById('thumbs').appendChild(d);
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function readImage(file, size) {
+            return new Promise(res => {
+                const img = new Image();
+                img.onload = () => {
+                    const c = document.createElement('canvas');
+                    c.width = size; c.height = size;
+                    c.getContext('2d').drawImage(img, 0, 0, size, size);
+                    res(c.getContext('2d').getImageData(0, 0, size, size));
+                };
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        // Wire up
+        document.getElementById('file-inp').addEventListener('change', e => loadFile(e.target.files[0]));
+        document.getElementById('btn-carve').addEventListener('click', doCarve);
+        document.getElementById('btn-reset').addEventListener('click', resetAll);
+
+        const dz = document.getElementById('dropzone');
+        dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+        dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+        dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+
+        // Boot
+        initThree();
+        setStage('front');
+    </script>
+</body>
+
+</html>

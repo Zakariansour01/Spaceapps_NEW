@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="src/style.css" />
+  <link rel="icon" type="image/png" href="Textures/Images/profile.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <title>3D Experience</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+
+    #impact-report {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, rgba(20, 20, 40, 0.95), rgba(40, 10, 10, 0.95));
+      color: #fff;
+      padding: 0;
+      font-family: 'Orbitron', monospace;
+      max-width: 380px;
+      border-radius: 12px;
+      display: none;
+      z-index: 100;
+      box-shadow: 0 8px 32px rgba(255, 0, 0, 0.3), 0 0 60px rgba(255, 50, 50, 0.2);
+      border: 2px solid rgba(255, 50, 50, 0.5);
+      animation: slideIn 0.5s ease-out, pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 8px 32px rgba(255, 0, 0, 0.3), 0 0 60px rgba(255, 50, 50, 0.2);
+      }
+
+      50% {
+        box-shadow: 0 8px 32px rgba(255, 0, 0, 0.5), 0 0 80px rgba(255, 50, 50, 0.4);
+      }
+    }
+
+    #impact-report h2 {
+      margin: 0;
+      padding: 20px;
+      font-size: 20px;
+      font-weight: 900;
+      text-align: center;
+      background: linear-gradient(90deg, #ff0000, #ff6600, #ff0000);
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: gradientShift 3s ease infinite;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+      border-bottom: 2px solid rgba(255, 50, 50, 0.5);
+    }
+
+    @keyframes gradientShift {
+
+      0%,
+      100% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+
+    #impact-report .content {
+      padding: 20px;
+    }
+
+    #impact-report p {
+      margin: 8px 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    #impact-report strong {
+      color: #ffaa00;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    #impact-report span {
+      color: #00ffff;
+      font-weight: 400;
+      font-size: 14px;
+      text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    }
+
+    #impact-report hr {
+      border: none;
+      border-top: 1px solid rgba(255, 50, 50, 0.3);
+      margin: 15px 0;
+    }
+
+    #impact-report .section {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 12px;
+      border-radius: 6px;
+      margin: 10px 0;
+      border-left: 3px solid #ff3333;
+    }
+
+    #impact-report .warning-icon {
+      display: inline-block;
+      color: #ff0000;
+      font-size: 24px;
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="impact-report">
+    <h2><span class="warning-icon">⚠</span> ASTEROID IMPACT REPORT <span class="warning-icon">⚠</span></h2>
+    <div class="content">
+      <div class="section">
+        <p><strong>Object Name:</strong> <span id="report-name"></span></p>
+      </div>
+
+      <div class="section">
+        <p><strong>Impact Coordinates:</strong></p>
+        <p>Latitude: <span id="report-lat"></span></p>
+        <p>Longitude: <span id="report-lon"></span></p>
+      </div>
+
+      <div class="section">
+        <p><strong>Asteroid Mass:</strong> <span id="report-mass"></span></p>
+        <p><strong>Impact Velocity:</strong> <span id="report-velocity"></span></p>
+      </div>
+
+      <div class="section">
+        <p><strong>Kinetic Energy:</strong></p>
+        <p>Joules: <span id="report-ke-j"></span></p>
+        <p>TNT Equivalent: <span id="report-ke-mt"></span></p>
+      </div>
+
+      <div class="section">
+        <p><strong>Crater Diameter:</strong> <span id="report-crater-km"></span></p>
+      </div>
+
+      <div class="section">
+        <h3>Seismic Impact Equivalent</h3>
+        <p>Equivalent Moment Magnitude (M<span class="superscript">W</span>): <span id="report-mw-value">--</span>
+        </p>
+        <p>Estimated Fault Rupture Area: <span id="report-rupture-area-value">--</span></p>
+        <p class="footnote">*(Calculated using $\eta = 1\%$ seismic efficiency)*</p>
+      </div>
+
+    </div>
+  </div>
+  <div id="map-container"
+    style="position: absolute; bottom: 20px; left: 20px; width: 400px; height: 300px; display: none; z-index: 100; border: 3px solid rgba(255, 50, 50, 0.8); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(255, 0, 0, 0.5);">
+    <div id="impact-map" style="width: 100%; height: 100%;"></div>
+  </div>
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+
+
+  let reportPanel;
+  let reportElements = {};
+  let particleSystem;
+  let particlesActive = false;
+  let impactMap;
+  let impactMarker;
+  let impactCircle;
+
+  document.addEventListener('DOMContentLoaded', () => {
+
+
+    reportPanel = document.getElementById('impact-report');
+    reportElements = {
+      name: document.getElementById('report-name'),
+      lat: document.getElementById('report-lat'),
+      lon: document.getElementById('report-lon'),
+      mass: document.getElementById('report-mass'),
+      velocity: document.getElementById('report-velocity'),
+      keJ: document.getElementById('report-ke-j'),
+      keMt: document.getElementById('report-ke-mt'),
+      craterKm: document.getElementById('report-crater-km'),
+      mwValue: document.getElementById('report-mw-value'),
+      ruptureAreaValue: document.getElementById('report-rupture-area-value'),
+    };
+  });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.00001, 100000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const FACTOR = 0.0001;
+  const earthRaduis = 6731 * FACTOR;
+  const Speed_Factor = 200;
+  const Inner = 100 * FACTOR;
+  const Outer = 600 * FACTOR;
+  const Earth_Revolving = 1670 * FACTOR;
+
+  let CAMERA_FOLLOW_DISTANCE = 0.05;
+  let CAMERA_SIDE_OFFSET = -0.0;
+  let CAMERA_UP_OFFSET = 0.05;
+
+
+  let earthSpinMultiplier = 1;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+  scene.add(ambientLight);
+
+  const hemiLight = new THREE.HemisphereLight(0x4488ff, 0x002244, 1.2);
+  hemiLight.position.set(0, 10, 0);
+  scene.add(hemiLight);
+
+  const SUN_POSITION = new THREE.Vector3(50, 0, 50);
+  const sunLight = new THREE.DirectionalLight(0xffffff, 4);
+  sunLight.position.copy(SUN_POSITION);
+  const earthTarget = new THREE.Object3D();
+  earthTarget.position.set(0, 0, 0);
+  scene.add(earthTarget);
+  sunLight.target = earthTarget;
+  scene.add(sunLight);
+
+  const geometry = new THREE.SphereGeometry(earthRaduis, 64, 64);
+  const geometry_Atom1 = new THREE.SphereGeometry(earthRaduis + Inner, 64, 64);
+  const geometry_Atom2 = new THREE.SphereGeometry(earthRaduis + Outer, 64, 64);
+
+  const sunRadius = 0.5;
+  const geometry_Sun = new THREE.SphereGeometry(sunRadius, 64, 64);
+
+  const textureLoader = new THREE.TextureLoader();
+  const earthTexture = textureLoader.load('Textures/earth.jpg');
+
+  const material = new THREE.MeshStandardMaterial({
+    map: earthTexture,
+    roughness: 0.8,
+    metalness: 0.0
+  });
+
+  const material_atom = new THREE.MeshStandardMaterial({
+    transparent: true,
+    opacity: 0.2,
+    color: 'white'
+  });
+  const material_Aster = new THREE.MeshStandardMaterial({
+    color: 'white'
+  });
+
+  const material_Sun = new THREE.MeshBasicMaterial({
+    color: 0xffcc44
+  });
+
+  const earth = new THREE.Mesh(geometry, material);
+  const Atom1 = new THREE.Mesh(geometry_Atom1, material_atom);
+  const Atom2 = new THREE.Mesh(geometry_Atom2, material_atom);
+
+  let AsteroidMesh;
+
+  const sun = new THREE.Mesh(geometry_Sun, material_Sun);
+
+  sun.position.copy(SUN_POSITION);
+  scene.add(sun);
+
+  const sunEarthLineMaterial = new THREE.LineBasicMaterial({
+    color: 0xffa500,
+    linewidth: 1
+  });
+
+  const sunEarthLineGeometry = new THREE.BufferGeometry().setFromPoints([
+    SUN_POSITION,
+    new THREE.Vector3(0, 0, 0)
+  ]);
+  const sunEarthLine = new THREE.Line(sunEarthLineGeometry, sunEarthLineMaterial);
+  scene.add(sunEarthLine);
+
+  function getEarthRotationAngle(date) {
+    const JD = date.getTime() / 86400000 + 2440587.5;
+    const d = JD - 2451545.0;
+
+    let GMST = 280.46061837 + 360.98564736629 * d;
+    GMST = (GMST % 360 + 360) % 360;
+
+    return THREE.MathUtils.degToRad(GMST);
+  }
+
+  function updateEarthRotation() {
+    const now = new Date();
+    const rotationAngle = getEarthRotationAngle(now);
+
+    const TEXTURE_OFFSET = Math.PI * 0.5;
+    earth.rotation.y = rotationAngle * earthSpinMultiplier + TEXTURE_OFFSET;
+  }
+
+  let TARGET_LONGITUDE = 4.569;
+  let TARGET_LATITUDE = 0.015;
+  let ASTEROID_IMPACT_SPEED_KM_S = 20.0;
+  let ASTEROID_RADIUS_KM = 0.5
+
+  let ASTEROID_VISUAL_SPEED = 0.5;
+  let ASTEROID_NAME = "Incoming Object";
+  const ASTEROID_DISTANCE = 2.0;
+
+  let targetPointLocal, laserDirectionLocal, laserOriginLocal, earthLaserLine, asteroidGroup;
+  let currentDistance;
+  let craterCenter;
+  let hasCollided = false;
+
+  function addCrater(geometry, craterCenter, craterRadius, depth) {
+    const position = geometry.attributes.position;
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      const z = position.getZ(i);
+
+      const vertex = new THREE.Vector3(x, y, z);
+
+      const dist = vertex.distanceTo(craterCenter);
+
+      if (dist < craterRadius) {
+        const falloff = 1 - dist / craterRadius;
+        const inward = depth * falloff;
+
+        const dir = vertex.clone().normalize();
+        position.setXYZ(
+          i,
+          x - inward * dir.x,
+          y - inward * dir.y,
+          z - inward * dir.z
+        );
+      }
+    }
+    position.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }
+
+  const earthGroup = new THREE.Group();
+  earthGroup.add(earth);
+  earthGroup.add(Atom1);
+
+  earthGroup.rotation.z = THREE.MathUtils.degToRad(23.5);
+
+  scene.add(earthGroup);
+
+  camera.position.z = 1;
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const clock = new THREE.Clock();
+
+  function initAsteroidSimulation() {
+    targetPointLocal = new THREE.Vector3();
+    const radius = earthRaduis;
+
+    const latRad = THREE.MathUtils.degToRad(TARGET_LATITUDE);
+    const lonRad = THREE.MathUtils.degToRad(TARGET_LONGITUDE);
+
+    targetPointLocal.x = radius * Math.cos(latRad) * Math.cos(lonRad);
+    targetPointLocal.y = radius * Math.sin(latRad);
+    targetPointLocal.z = radius * Math.cos(latRad) * Math.sin(lonRad);
+
+    laserDirectionLocal = targetPointLocal.clone().normalize();
+    laserOriginLocal = targetPointLocal.clone();
+
+    const lineGeometry = new THREE.BufferGeometry();
+    const laserLinePositions = new Float32Array(6);
+    lineGeometry.setAttribute('position', new THREE.BufferAttribute(laserLinePositions, 3));
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+    earthLaserLine = new THREE.Line(lineGeometry, lineMaterial);
+
+    const laserLength = 10;
+    laserLinePositions[0] = laserOriginLocal.x;
+    laserLinePositions[1] = laserOriginLocal.y;
+    laserLinePositions[2] = laserOriginLocal.z;
+    laserLinePositions[3] = laserOriginLocal.x + laserDirectionLocal.x * laserLength;
+    laserLinePositions[4] = laserOriginLocal.y + laserDirectionLocal.y * laserLength;
+    laserLinePositions[5] = laserOriginLocal.z + laserDirectionLocal.z * laserLength;
+    lineGeometry.attributes.position.needsUpdate = true;
+
+    const ASTEROID_VISUAL_RADIUS = ASTEROID_RADIUS_KM * FACTOR;
+    const Asteroid1 = new THREE.SphereGeometry(ASTEROID_VISUAL_RADIUS * 10, 64, 64);
+    AsteroidMesh = new THREE.Mesh(Asteroid1, material_Aster);
+
+    const initialDistance = radius + ASTEROID_DISTANCE;
+    const initialAsteroidPositionLocal = laserDirectionLocal.clone().multiplyScalar(initialDistance);
+
+    asteroidGroup = new THREE.Group();
+    asteroidGroup.position.copy(initialAsteroidPositionLocal);
+    asteroidGroup.add(AsteroidMesh);
+
+    currentDistance = initialDistance;
+
+    craterCenter = targetPointLocal.clone();
+
+    earthGroup.add(earthLaserLine);
+    earthGroup.add(asteroidGroup);
+
+    camera.position.z = 1;
+    camera.position.y = 0.5;
+    controls.target.set(0, 0, 0);
+    controls.update();
+
+  }
+
+  function calculateSeismicImpact(kineticEnergyJoules) {
+    const SEISMIC_EFFICIENCY_ETA = 0.01;
+    const E = kineticEnergyJoules;
+
+    let momentMagnitude = 0;
+
+    if (SEISMIC_EFFICIENCY_ETA * E > 0) {
+      const log10_EtaE = Math.log10(SEISMIC_EFFICIENCY_ETA * E);
+      momentMagnitude = (log10_EtaE - 4.8) / 1.5;
+    }
+
+    let ruptureAreaKm2 = 0;
+
+    if (momentMagnitude > 0) {
+      const log10_A = 0.91 * momentMagnitude - 3.49;
+      ruptureAreaKm2 = Math.pow(10, log10_A);
+    }
+
+    if (momentMagnitude > 12.0) {
+      momentMagnitude = 12.0;
+    }
+
+    return { momentMagnitude, ruptureAreaKm2 };
+  }
+
+  function createImpactParticles(position) {
+    const particleCount = 500;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const velocities = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      const offset = new THREE.Vector3().randomDirection().multiplyScalar(0.005);
+      positions[i * 3 + 0] = position.x + offset.x;
+      positions[i * 3 + 1] = position.y + offset.y;
+      positions[i * 3 + 2] = position.z + offset.z;
+
+      const velocity = new THREE.Vector3().randomDirection().multiplyScalar(THREE.MathUtils.randFloat(0.001, 0.03));
+      velocities.push(velocity);
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.userData.velocities = velocities;
+
+    const material = new THREE.PointsMaterial({
+      color: 0xff4400,
+      size: 0.003,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    particleSystem = new THREE.Points(geometry, material);
+    particleSystem.userData.startTime = Date.now();
+    earthGroup.add(particleSystem);
+    particlesActive = true;
+  }
+
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+
+    const asteroidName = params.get('name');
+    const impactSpeed = params.get('speed');
+    const AsterRadius = params.get('radius');
+    const impactLatitude = params.get('latitude');
+    const impactLongitude = params.get('longitude');
+    const followDistance = params.get('follow_dist');
+
+    if (asteroidName) {
+      ASTEROID_NAME = decodeURIComponent(asteroidName.replace(/_/g, ' '));
+
+      if (impactLatitude) TARGET_LATITUDE = parseFloat(impactLatitude);
+      if (impactLongitude) TARGET_LONGITUDE = parseFloat(impactLongitude);
+
+      if (impactSpeed) {
+        ASTEROID_IMPACT_SPEED_KM_S = parseFloat(impactSpeed);
+        ASTEROID_VISUAL_SPEED = Math.max(0.1, Math.min(ASTEROID_IMPACT_SPEED_KM_S * 0.025, 5.0));
+      }
+      if (AsterRadius) {
+        ASTEROID_RADIUS_KM = parseFloat(AsterRadius);
+      } else {
+        console.log(`No radius provided. Using default radius: ${ASTEROID_RADIUS_KM} km`);
+      }
+
+      if (followDistance) {
+        CAMERA_FOLLOW_DISTANCE = parseFloat(followDistance);
+      }
+
+      console.log(`--- Collision Data Received ---`);
+      console.log(`Asteroid name: ${ASTEROID_NAME}`);
+      console.log(`Asteroid radius: ${ASTEROID_RADIUS_KM}`);
+      console.log(`Impact Speed: ${ASTEROID_IMPACT_SPEED_KM_S} km/s (Visual Speed: ${ASTEROID_VISUAL_SPEED.toFixed(3)})`);
+      console.log(`Location: Lat ${TARGET_LATITUDE.toFixed(4)}°, Lon ${TARGET_LONGITUDE.toFixed(4)}°`);
+      console.log(`Camera Follow Distance: ${CAMERA_FOLLOW_DISTANCE.toFixed(3)} (Simulation Units)`);
+      console.log(`-----------------------------`);
+    } else {
+      console.log("No collision data found in URL parameters. Using default simulation values.");
+    }
+
+    initAsteroidSimulation();
+
+    animate();
+  });
+
+  let animationFrameId;
+
+  function animate() {
+    animationFrameId = requestAnimationFrame(animate);
+
+    updateEarthRotation();
+
+    const delta = clock.getDelta();
+
+    if (!hasCollided && asteroidGroup) {
+      currentDistance -= ASTEROID_VISUAL_SPEED * delta;
+
+      asteroidGroup.position.copy(laserDirectionLocal).multiplyScalar(currentDistance);
+
+
+      const asteroidPosition = asteroidGroup.position;
+      const directionAwayFromEarth = asteroidPosition.clone().normalize();
+
+      controls.target.copy(asteroidPosition);
+
+      let newCameraPosition = directionAwayFromEarth.clone().multiplyScalar(currentDistance + CAMERA_FOLLOW_DISTANCE);
+
+      if (CAMERA_SIDE_OFFSET !== 0 || CAMERA_UP_OFFSET !== 0) {
+
+        const worldUp = new THREE.Vector3(0, 1, 0);
+
+        const rightVector = new THREE.Vector3().crossVectors(directionAwayFromEarth, worldUp).normalize();
+
+        const upVector = new THREE.Vector3().crossVectors(rightVector, directionAwayFromEarth).normalize();
+
+        newCameraPosition.add(rightVector.multiplyScalar(CAMERA_SIDE_OFFSET));
+        newCameraPosition.add(upVector.multiplyScalar(CAMERA_UP_OFFSET));
+      }
+
+      camera.position.copy(newCameraPosition);
+
+      if (currentDistance <= earthRaduis) {
+        hasCollided = true;
+        initImpactMap(TARGET_LATITUDE, TARGET_LONGITUDE);
+
+        camera.position.z = 1;
+        camera.position.y = 0.5;
+        controls.target.set(0, 0, 0);
+
+        console.log(`COLLISION DETECTED! (${ASTEROID_NAME})`);
+        console.log(`Collision Location: Longitude: ${TARGET_LONGITUDE.toFixed(4)}°, Latitude: ${TARGET_LATITUDE.toFixed(4)}°`);
+
+        const density_p = 7960;
+        const density_t = 3000;
+        const g = 9.81;
+
+        const effectiveAsteroidRadiusKm = ASTEROID_RADIUS_KM;
+        const radius_m = effectiveAsteroidRadiusKm * 1000;
+        const diameter_m = radius_m * 2;
+
+        const volume = (4 / 3) * Math.PI * Math.pow(radius_m, 3);
+        const mass_initial = density_p * volume;
+        const velocity_initial_m_s = ASTEROID_IMPACT_SPEED_KM_S * 1000;
+
+        let m0 = mass_initial;
+        let D = diameter_m;
+        let V0 = velocity_initial_m_s;
+        let CH = 0.1;
+        let Qstar = 1e7;
+        let CD = 1.0;
+        let H = 8500;
+        let rho0 = 1.225;
+        let h_max = 100000;
+        let deltaH = 1000;
+
+        let A = Math.PI * (D / 2) ** 2;
+        let m = m0;
+        let V = V0;
+
+        for (let h = h_max; h >= 0; h -= deltaH) {
+          let rho = rho0 * Math.exp(-h / H);
+
+          let deltaM = 0.5 * CH * A * rho * V ** 2 / Qstar * deltaH;
+          m -= deltaM;
+          if (m < 0) {
+            m = 0;
+            break;
+          }
+
+          let dV = 0.5 * CD * A * rho * V / m * deltaH;
+          V -= dV;
+          if (V < 0) V = 0;
+        }
+
+        const mass = m;
+        const velocity_m_s = V;
+        const KE = 0.5 * mass * Math.pow(velocity_m_s, 2);
+        const KE_Mt = KE / 4.184e15;
+
+        const D_tc = 1.39 *
+          Math.pow(density_p / density_t, 1 / 3) *
+          Math.pow(diameter_m, 0.78) *
+          Math.pow(velocity_m_s, 0.43) *
+          Math.pow(g, -0.22);
+        const D_tc_km = D_tc / 1000;
+
+        const seismicResults = calculateSeismicImpact(KE);
+        const Mw = seismicResults.momentMagnitude;
+        const AreaKm2 = seismicResults.ruptureAreaKm2;
+
+        console.log("===== ASTEROID IMPACT REPORT =====");
+        console.log(`Initial Mass (kg): ${mass_initial.toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+        console.log(`Initial Velocity (m/s): ${velocity_initial_m_s.toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+        console.log(`--- After Atmospheric Passage ---`);
+        console.log(`Final Mass (kg): ${mass.toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+        console.log(`Mass Lost (%): ${((1 - mass / mass_initial) * 100).toFixed(2)}%`);
+        console.log(`Final Velocity (m/s): ${velocity_m_s.toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+        console.log(`Kinetic Energy (J): ${KE.toExponential(2)}`);
+        console.log(`Kinetic Energy (Mt TNT): ${KE_Mt.toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+        console.log(`Crater Diameter (km): ${D_tc_km.toLocaleString('en-US', { maximumFractionDigits: 2 })}`);
+        console.log(`Moment Magnitude (Mw): ${Mw.toFixed(2)}`);
+        console.log(`Rupture Area (km²): ${AreaKm2.toLocaleString('en-US', { maximumFractionDigits: 0 })} km²`);
+        console.log("===================================");
+
+        if (reportPanel) {
+          reportElements.name.textContent = ASTEROID_NAME;
+          reportElements.lat.textContent = TARGET_LATITUDE.toFixed(4) + '°';
+          reportElements.lon.textContent = TARGET_LONGITUDE.toFixed(4) + '°';
+          reportElements.mass.textContent = `${mass.toLocaleString('en-US', { maximumFractionDigits: 2 })} kg`;
+          reportElements.velocity.textContent = `${velocity_m_s.toLocaleString('en-US', { maximumFractionDigits: 2 })} m/s`;
+          reportElements.keJ.textContent = `${KE.toExponential(2)}`;
+          reportElements.keMt.textContent = `${KE_Mt.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+          reportElements.craterKm.textContent = `${D_tc_km.toLocaleString('en-US', { maximumFractionDigits: 2 })} km`;
+
+          if (reportElements.mwValue) {
+            reportElements.mwValue.textContent = Mw.toFixed(2);
+          }
+          if (reportElements.ruptureAreaValue) {
+            reportElements.ruptureAreaValue.textContent = `${AreaKm2.toLocaleString('en-US', { maximumFractionDigits: 0 })} km²`;
+          }
+
+          reportPanel.style.display = 'block';
+        }
+
+        const CRATER_DIAMETER_VISUAL = (D_tc_km * FACTOR) / 2;
+        const sphereRadius1 = CRATER_DIAMETER_VISUAL;
+        let ruptureRadiusKm = Math.sqrt(AreaKm2 / Math.PI);
+        const sphereRadius3 = ruptureRadiusKm * FACTOR;
+
+        console.log(`Crater Visual Radius: ${sphereRadius1}`);
+        console.log(`Rupture Visual Radius: ${sphereRadius3}`);
+
+        function createImpactSphere(radius, color) {
+          const sphereGeometry = new THREE.SphereGeometry(radius, 16, 16);
+          const sphereMaterial = new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: 0.5,
+            wireframe: true
+          });
+          const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+          sphereMesh.position.copy(craterCenter);
+
+          const normal = craterCenter.clone().normalize();
+          const offset = 0.001;
+          sphereMesh.position.add(normal.multiplyScalar(offset));
+
+          return sphereMesh;
+        }
+
+        const sphere1 = createImpactSphere(sphereRadius1, 0xff0000);
+        const sphere3 = createImpactSphere(sphereRadius3, 0x0000ff);
+
+        earthGroup.add(sphere1);
+        earthGroup.add(sphere3);
+
+        asteroidGroup.remove(AsteroidMesh);
+        earthGroup.remove(earthLaserLine);
+      }
+
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  window.addEventListener('resize', onWindowResize, false);
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+
+  function initImpactMap(lat, lng) {
+    const mapContainer = document.getElementById('map-container');
+    mapContainer.style.display = 'block';
+
+    impactMap = L.map('impact-map', {
+      center: [lat, lng],
+      zoom: 6,
+      zoomControl: true
+    });
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri',
+      maxZoom: 18
+    }).addTo(impactMap);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18
+    }).addTo(impactMap);
+
+    const customIcon = L.divIcon({
+      className: 'custom-marker-container',
+      html: '<div style="background: #ef4444; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 24]
+    });
+
+    impactMarker = L.marker([lat, lng], { icon: customIcon }).addTo(impactMap);
+
+    impactCircle = L.circle([lat, lng], {
+      color: '#ff0000',
+      fillColor: '#ff0000',
+      fillOpacity: 0.3,
+      radius: 50000
+    }).addTo(impactMap);
+  }
+
+</script>
+</body>
+
+</html>

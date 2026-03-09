@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="src/style.css" />
+  <link rel="icon" type="image/png" href="Textures/Images/profile.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <title>3D Experience</title>
+
+</head>
+
+<body>
+
+  <canvas class="threejs"></canvas>
+  <section>
+    <div class="control-panel">
+      <h3>Asteroid Control Panel</h3>
+      <div class="control-group">
+        <label for="asteroidSelect">Select Asteroid:</label>
+        <select id="asteroidSelect">
+          <option value="">-- Choose an asteroid --</option>
+        </select>
+      </div>
+
+      <div class="info-display" id="asteroidInfo">
+        <div class="no-selection">
+          No asteroid selected
+        </div>
+        <!-- <div class="control-group" id="whatIfButtonContainer">
+          <button id="EarthFollow" class="what-if-btn">cam</button>
+        </div> -->
+      </div>
+
+      <div class="control-group" id="whatIfButtonContainer" style="display: none;">
+        <button id="randomHitBtn" class="what-if-btn">random hit</button>
+        <button id="whatIfButton" class="what-if-btn">What If?</button>
+      </div>
+    </div>
+  </section>
+
+
+
+
+
+
+
+  <!-- contoll panel -->
+  <div class="control-panels-container">
+
+    <!-- Speed Control Panel -->
+    <section class="control-panel-card" id="speedControlPanel" style="display:none;">
+      <h3>Speed Control</h3>
+
+      <div class="control-group">
+        <label id="selectedAsteroidName">Selected: None</label>
+      </div>
+
+      <div class="slider-container">
+        <label for="speedSlider">
+          Speed Multiplier:
+          <span id="speedValue" class="value-display">1.00×</span>
+        </label>
+        <input type="range" id="speedSlider" min="0.1" max="5" step="0.01" value="1">
+      </div>
+
+      <div class="calculation-output" id="speedCalculation" style="display: none;">
+        <p><strong>Calculation:</strong></p>
+        <p id="calculationFormula">-</p>
+        <p id="calculationResult">-</p>
+      </div>
+
+      <div class="button-group">
+        <button class="card-button primary" id="applySpeed">Apply Speed</button>
+        <button class="card-button secondary" id="ResetCam">Reset Orbit</button>
+      </div>
+    </section>
+
+    <!-- Radius Control Panel -->
+    <section class="control-panel-card" id="RadiusControlPanel" style="display:none;">
+      <h3>Radius Control</h3>
+
+      <div class="control-group">
+        <label id="selectedAsteroidRadiusName">Selected: None</label>
+      </div>
+
+      <div class="slider-container">
+        <label for="radiusSlider">
+          Radius Multiplier:
+          <span id="radiusValue" class="value-display">1.00×</span>
+        </label>
+        <input type="range" id="radiusSlider" min="0.1" max="5.0" step="0.01" value="1.0">
+      </div>
+
+      <div class="calculation-output" id="radiusCalculation" style="display: none;">
+        <p><strong>Applying Law:</strong></p>
+        <p id="radiusFormula">-</p>
+        <p id="radiusResult">-</p>
+      </div>
+
+      <div class="button-group">
+        <button class="card-button primary" id="applyRadius">Apply Radius</button>
+      </div>
+    </section>
+
+  </div>
+
+
+  <!-- your one -->
+  <div id="createAsteroidPanel">
+    <h3>🚀 Create Your Asteroid</h3>
+    <div class="input-group">
+      <label for="newAsteroidName">Name:</label>
+      <input type="text" id="newAsteroidName" value="Custom NEO" required>
+    </div>
+
+    <div class="input-group">
+      <label for="newOrbitType">Orbit Type (for initial elements):</label>
+      <select id="newOrbitType">
+        <option value="apollo">Apollo (Earth-crossing)</option>
+        <option value="amor">Amor (Near Earth)</option>
+        <option value="aten">Aten (Earth-inside)</option>
+        <option value="atira">Atira (Venus-inside)</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label for="newAsteroidVelocity">Velocity (km/s) at Perihelion:</label>
+      <input type="number" id="newAsteroidVelocity" min="10.0" max="80.0" step="0.1" value="30.0" required>
+      <span class="unit">km/s</span>
+    </div>
+
+    <div class="input-group">
+      <label for="newAsteroidDiameter">Diameter (meters):</label>
+      <input type="number" id="newAsteroidDiameter" min="10" max="10000" step="1" value="500" required>
+      <span class="unit">m</span>
+    </div>
+
+    <button id="createAsteroidBtn" class="action-button">Create Asteroid</button>
+    <button id="cancelFollowBtn" class="action-button">Release the Camera</button>
+  </div>
+
+
+
+
+
+
+
+
+
+
+  <section class="container">
+    <h2>Kepler Equation Solver → Compute Heliocentric (X, Y, Z) (AU)</h2>
+
+    <p>Enter Keplerian elements at the J2000 epoch or use the default values for Earth.</p>
+
+    <div>
+      <label>Semi-major axis a (AU)</label>
+      <input id="a" type="number" step="any" value="1.000004057082572">
+
+      <label>Eccentricity e</label>
+      <input id="e" type="number" step="any" value="0.016699921126945932">
+
+      <label>Inclination i (deg)</label>
+      <input id="i" type="number" step="any" value="-0.000058449763595668035">
+
+      <label>Longitude of ascending node Ω (deg)</label>
+      <input id="Omega" type="number" step="any" value="0">
+
+      <label>Longitude of perihelion varpi = ω + Ω (deg)</label>
+      <input id="varpi" type="number" step="any" value="103.0">
+
+      <label>Mean longitude L (deg)</label>
+      <input id="L" type="number" step="any" value="163.5351005213336">
+
+      <label>Calculation date (UTC)</label>
+      <div class="row">
+        <input id="date" type="date" value="">
+        <button id="nowBtn">Now</button>
+      </div>
+
+      <div style="margin-top:10px;">
+        <button id="compute">Compute Coordinates</button>
+      </div>
+    </div>
+
+    <div class="out">
+      <h3>Results</h3>
+      <pre id="result">Nothing yet — click "Compute Coordinates".</pre>
+    </div>
+
+  </section>
+
+  <!-- <div class="stars" id="stars"></div> -->
+
+
+
+
+  <div class="coltrollerScene">
+    <div id="solarSpeedControlPanel">
+      <h3>Simulation Speed</h3>
+      <div>
+        <label for="solarSpeedSlider">Time Acceleration Factor:</label>
+        <input type="range" id="solarSpeedSlider" min="1" max="10000000" value="5000000" step="500">
+        <span id="solarSpeedValue">5000000</span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h3>Earth Scale</h3>
+      <div>
+        <label for="earthSizeSlider">Earth Visual Scale (×):</label>
+        <input type="range" id="earthSizeSlider" min="1" max="1000" step="10" value="500">
+        <span id="earthSizeValue">500</span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h3>Asteroid Scale</h3>
+      <div>
+        <label for="asteroidSizeSlider">Asteroid Visual Scale (×):</label>
+        <input type="range" id="asteroidSizeSlider" min="1" max="500" step="5" value="50">
+        <span id="asteroidSizeValue">50</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="/src/RealSim.js"></script>
+</body>
+
+</html>

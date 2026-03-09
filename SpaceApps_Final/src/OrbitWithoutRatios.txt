@@ -1,0 +1,892 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const apiKey = "HqvC7ycEft644yAxJtNOq3obHYaLIE8TRT3DxYje";
+
+// Scene
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const axisHelper = new THREE.AxesHelper(100);
+scene.add(axisHelper);
+
+// maths Variables
+
+// Sizes (Earth-Sun)
+const SUN_RADIUS_KM = 696340; 
+const EARTH_RADIUS_KM = 6371; 
+const SCALE_FACTOR = 0.00005;
+// position of earth
+let xecl = 0, yecl = 0, zecl = 0;
+const Position_Factor = 100; 
+// orbit of earth
+const a = 1 *Position_Factor * SCALE_FACTOR * 20000;     // semi-major axis (1 AU)
+const e = 0.0167;             // Earth orbital eccentricity
+const T = 365.25 * 24 * 3600; // orbital period in seconds (scaled later)
+const AU_KM = 149597870.7;        // 1 AU in km
+const EARTH_SPEED_KM_S = 29.78;   // average orbital speed
+const Speed_Factor = 100000;
+const ORBIT_SPEED = EARTH_SPEED_KM_S * Speed_Factor * Position_Factor / AU_KM;      // 1 AU in km
+const GM_SUN_KM3_S2 = 1.32712440018e11; // Gravitational constant of the Sun (km^3/s^2)
+
+
+// ALL Geometeries
+// Geomateries
+const SunGeo = new THREE.SphereGeometry(SUN_RADIUS_KM * SCALE_FACTOR, 64, 64);
+const EarthGeo = new THREE.SphereGeometry(EARTH_RADIUS_KM * SCALE_FACTOR, 64, 64);
+
+// textureLoader
+const textureLoader = new THREE.TextureLoader();
+// textures
+const sunTexture = textureLoader.load('Textures/sun.png');
+const earthTexture = textureLoader.load('Textures/earth.jpg');
+
+// Materials
+const sunMaterial = new THREE.MeshBasicMaterial({
+    map: sunTexture
+});
+const earthMaterial = new THREE.MeshStandardMaterial({
+    map: earthTexture
+});
+
+// final Geo
+const sun = new THREE.Mesh(SunGeo, sunMaterial);
+sun.position.set(0, 0, 0);
+// sun.scale.setScalar(SUN_RADIUS_KM * SCALE_FACTOR);
+
+const earth = new THREE.Mesh(EarthGeo, earthMaterial);
+earth.position.set(xecl * Position_Factor, yecl * Position_Factor, zecl * Position_Factor);
+// earth.scale.setScalar(EARTH_RADIUS_KM * SCALE_FACTOR);
+
+// Calcualtions
+// Location of Earth in Solar System
+// ---------- مساعدة: تحويلات وحدات ----------
+const deg2rad = d => d * Math.PI / 180;
+const rad2deg = r => r * 180 / Math.PI;
+
+// ---------- تحويل تاريخ إلى Julian Date ----------
+function dateToJD(dateObj) {
+    return dateObj.getTime()/86400000 + 2440587.5;
+}
+
+// ---------- حل معادلة كبلر (Newton-Raphson) ----------
+function solveKepler(M, e, tol = 1e-8, maxIter = 50) {
+    let Mwrap = ((M + Math.PI) % (2*Math.PI)) - Math.PI;
+    let E = (e < 0.8) ? Mwrap : Math.PI;
+    for (let iter = 0; iter < maxIter; iter++) {
+        let f = E - e * Math.sin(E) - Mwrap;
+        let fprime = 1 - e * Math.cos(E);
+        let dE = f / fprime;
+        E = E - dE;
+        if (Math.abs(dE) < tol) {
+            return E;
+        }
+    }
+    return E;
+}
+
+// ---------- من E نحسب x', y' في مستوى المدار ----------
+function orbitalPlaneCoords(a, e, E) {
+    const cosE = Math.cos(E);
+    const sinE = Math.sin(E);
+    const r = a * (1 - e * cosE);
+    const xprime = a * (cosE - e);
+    const yprime = a * Math.sqrt(Math.max(0, 1 - e * e)) * sinE
+    return { r, xprime, yprime };
+}
+
+// ---------- تحويل من (x',y',0) إلى (xecl, yecl, zecl) حسب ω, Ω, i ----------
+function toEcliptic(xp, yp, omega, Omega, i) {
+    const cosw = Math.cos(omega), sinw = Math.sin(omega);
+    const cosO = Math.cos(Omega), sinO = Math.sin(Omega);
+    const cosI = Math.cos(i), sinI = Math.sin(i);
+
+    const xecl = (cosw * cosO - sinw * sinO * cosI) * xp +
+                 (-sinw * cosO - cosw * sinO * cosI) * yp;
+
+    const yecl = (cosw * sinO + sinw * cosO * cosI) * xp +
+                 (-sinw * sinO + cosw * cosO * cosI) * yp;
+
+    const zecl = (sinw * sinI) * xp + (cosw * sinI) * yp;
+
+    return { xecl, yecl, zecl };
+}
+
+// ---------- حساب M = L - varpi (بدرجات) ثم تحويل إلى radians ----------
+function computeMeanAnomaly(L_deg, varpi_deg) {
+    let Mdeg = L_deg - varpi_deg;
+    Mdeg = ((Mdeg % 360) + 360) % 360;
+    return deg2rad(Mdeg);
+}
+
+// ---------- الحدث الرئيسي: حساب E -> (x,y) -> (X,Y,Z) ----------
+document.getElementById('nowBtn').addEventListener('click', () => {
+    const today = new Date();
+    const iso = today.toISOString().slice(0,10);
+    document.getElementById('date').value = iso;
+});
+
+document.getElementById('compute').addEventListener('click', () => {
+    const a = parseFloat(document.getElementById('a').value);
+    const e = parseFloat(document.getElementById('e').value);
+    const i_deg = parseFloat(document.getElementById('i').value);
+    const Omega_deg = parseFloat(document.getElementById('Omega').value);
+    const varpi_deg = parseFloat(document.getElementById('varpi').value);
+    const L_deg = parseFloat(document.getElementById('L').value);
+
+    let dateInput = document.getElementById('date').value;
+    let dateObj = dateInput ? new Date(dateInput + 'T00:00:00Z') : new Date();
+    const JD = dateToJD(dateObj);
+    const T = (JD - 2451545.0) / 36525.0;
+
+    const M = computeMeanAnomaly(L_deg, varpi_deg);
+    const E = solveKepler(M, e);
+    const { r, xprime, yprime } = orbitalPlaneCoords(a, e, E);
+
+    const omega_deg = varpi_deg - Omega_deg;
+    const omega = deg2rad(omega_deg);
+    const Omega = deg2rad(Omega_deg);
+    const i = deg2rad(i_deg);
+
+    ({ xecl, yecl, zecl } = toEcliptic(xprime, yprime, omega, Omega, i));
+
+    const out = {
+        dateUTC: dateObj.toISOString(),
+        JD,
+        T_centuries: T,
+        elements: { a, e, i_deg, Omega_deg, varpi_deg, L_deg },
+        computed: {
+            M_rad: M, M_deg: rad2deg(M),
+            E_rad: E, E_deg: rad2deg(E),
+            r_AU: r,
+            xprime_AU: xprime,
+            yprime_AU: yprime,
+            xecl_AU: xecl,
+            yecl_AU: yecl,
+            zecl_AU: zecl,
+        }
+    };
+
+    document.getElementById('result').textContent = JSON.stringify(out, null, 2);
+    earth.position.set(xecl * Position_Factor, yecl * Position_Factor, zecl * Position_Factor);
+    const canvas = document.querySelector('canvas.threejs');
+    // canvas.style.zIndex = '1';`
+});
+
+// Orbit rotation shape for earth
+function solveKepler_Orbit(M, e, tol=1e-6, maxIter=50){
+    let E = M;
+    for (let i = 0; i < maxIter; i++){
+        let f = E - e * Math.sin(E) - M;
+        let fp = 1 - e * Math.cos(E);
+        let dE = f / fp;
+        E = E - dE;
+        if(Math.abs(dE) < tol) break;
+    }
+    return E;
+}
+
+function getEarthPosition(time){
+    const n = 2 * Math.PI / T;
+    const M = n * time;
+    const E = solveKepler_Orbit(M, e);
+
+    const x = a * (Math.cos(E) - e);
+    const y = a * Math.sqrt(1 - e * e) * Math.sin(E);
+    const z = 0;
+
+    return new THREE.Vector3(x, y, z);
+}
+
+// === Precompute orbit path for Earth ===
+const earthOrbitPoints = [];
+const steps = 360;
+for (let t = 0; t <= T; t += T / steps) {
+    earthOrbitPoints.push(getEarthPosition(t));
+}
+
+const earthOrbitGeometry = new THREE.BufferGeometry().setFromPoints(earthOrbitPoints);
+const earthOrbitMaterial = new THREE.LineBasicMaterial({ color: 'white' });
+const earthOrbitLine = new THREE.Line(earthOrbitGeometry, earthOrbitMaterial);
+scene.add(earthOrbitLine);
+
+
+
+
+
+// light
+const amlight = new THREE.AmbientLight('white', 1);
+const pointLight = new THREE.PointLight('white', 5);
+
+scene.add(sun, pointLight, amlight, earth);
+
+// Camera
+const camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+);
+camera.position.z = 200;
+
+const canvas = document.querySelector('canvas.threejs');
+const renderer = new THREE.WebGLRenderer({
+    canvas: canvas,
+    antialias: true
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.autoRotate = false;
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+let elapsedTime = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+// === NASA Asteroid Storage ===
+// const apolloAsteroids = [];
+// const amorAsteroids = [];
+// const atenAsteroids = [];
+// const atiraAsteroids = [];
+
+// === Fetch NASA NEO Data and Place on Orbits ===
+const feedUrl = `https://api.nasa.gov/neo/rest/v1/feed?start_date=2025-09-30&end_date=2025-10-02&api_key=${apiKey}`;
+
+fetch(feedUrl)
+    .then(res => res.json())
+    .then(data => {
+        console.log("Fetched NEO data:", data);
+
+        for (let date in data.near_earth_objects) {
+            data.near_earth_objects[date].forEach(async neo => {
+                const diameter = neo.estimated_diameter.meters.estimated_diameter_max;
+
+                // Fetch orbit class
+                try {
+                    const lookupUrl = `https://api.nasa.gov/neo/rest/v1/neo/${neo.id}?api_key=${apiKey}`;
+                    const resp = await fetch(lookupUrl);
+                    const lookupData = await resp.json();
+                    const orbitClass = lookupData.orbital_data.orbit_class?.orbit_class_type || "Unknown";
+                    const orbitalData = lookupData.orbital_data;
+                    
+                    console.log(`${neo.name}: ${orbitClass}`);
+                    
+                    // Create asteroid with real orbital parameters
+                    createAsteroidWithRealOrbit(neo.name, orbitClass, diameter, orbitalData);
+                } catch (e) {
+                    console.error("Error fetching orbit data:", e);
+                }
+            });
+        }
+    })
+    .catch(err => {
+        console.error("Error fetching NEO data:", err);
+    });
+
+    const allAsteroids = [];
+// === Create Asteroid with Real Orbital Elements ===
+// === Create Asteroid with Real Orbital Elements (Modified for Random Placement) ===
+// === Create Asteroid with Real Orbital Elements (MODIFIED) ===
+function createAsteroidWithRealOrbit(name, orbitClass, diameter, orbitalData) {
+    if (!orbitalData) return;
+    
+    const radius = Math.max(diameter * SCALE_FACTOR * 0.5, 3);
+    
+    // --- 1. Extract and Convert Orbital Elements ---
+    
+    // The NASA API gives semi-major axis in AU. We need to scale it like Earth's 'a'.
+    const a_AU = parseFloat(orbitalData.semi_major_axis) || 1.0;
+    // Use the Earth's scaling factor to get 'a' in simulation units
+    const a_scaled = a_AU * Position_Factor * SCALE_FACTOR * 20000; 
+
+    const e = parseFloat(orbitalData.eccentricity) || 0.1;
+    const i_deg = parseFloat(orbitalData.inclination) || 5.0;
+    const Omega_deg = parseFloat(orbitalData.longitude_of_ascending_node) || 0;
+    const omega_deg = parseFloat(orbitalData.arg_of_periapsis) || 0;
+    
+    // Convert angles to radians
+    const i = deg2rad(i_deg);
+    const Omega = deg2rad(Omega_deg);
+    const omega = deg2rad(omega_deg);
+
+    // --- 2. Determine Display Properties ---
+    let color, orbitType;
+    if (orbitClass.includes('Apollo') || orbitClass.includes('APO')) {
+        color = 'red'; orbitType = 'apollo';
+    } else if (orbitClass.includes('Amor') || orbitClass.includes('AMO')) {
+        color = 'orange'; orbitType = 'amor';
+    } else if (orbitClass.includes('Aten') || orbitClass.includes('ATE')) {
+        color = 'green'; orbitType = 'aten';
+    } else if (orbitClass.includes('Atira') || orbitClass.includes('IEO') || orbitClass.includes('ATI')) {
+        color = 'cyan'; orbitType = 'atira';
+    } else {
+        color = 'white'; orbitType = 'other';
+    }
+    
+    console.log(`${name}: ${orbitClass} -> ${orbitType} orbit (a=${a_AU.toFixed(2)} AU)`);
+    
+    // Create asteroid mesh
+    const asteroidMaterial = new THREE.MeshStandardMaterial({ 
+        color: color, 
+        metalness: 0.5, 
+        roughness: 0.7 
+    });
+    const asteroidMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 16, 16), 
+        asteroidMaterial
+    );
+    scene.add(asteroidMesh);
+
+
+    // --- 3. Precompute and Draw the Orbit Path ---
+    const T_days = parseFloat(orbitalData.orbital_period) || 365;
+    const T_asteroid = T_days * 24 * 3600; // Period in simulation "seconds"
+    const n = 2 * Math.PI / T_asteroid; // Mean motion
+
+    const orbitPoints = [];
+    const steps = 360;
+    
+    // Use Mean Anomaly (M) from 0 to 2*PI to calculate the whole path
+    for (let M_rad = 0; M_rad <= 2 * Math.PI; M_rad += (2 * Math.PI) / steps) {
+        const pos = getAsteroidPosition(a_scaled, e, i, omega, Omega, M_rad);
+        orbitPoints.push(pos);
+    }
+
+    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+    const orbitMaterial = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.5 });
+    const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+    scene.add(orbitLine);
+    
+    // --- 4. Define initial position and speed ---
+    // Use a random starting Mean Anomaly (M_start) to distribute asteroids
+    const M_start = Math.random() * 2 * Math.PI;
+    const initialPos = getAsteroidPosition(a_scaled, e, i, omega, Omega, M_start);
+    asteroidMesh.position.copy(initialPos);
+
+    // Calculate time increment (speed)
+    const asteroidSpeed = n * Speed_Factor; // n (Mean Motion) is the rate of M
+
+    // --- 5. Store Asteroid Data ---
+    const asteroidData = {
+        mesh: asteroidMesh,
+        name: name,
+        time: M_start / n, // Initial time corresponding to M_start
+        speed: asteroidSpeed, // Speed is the change in Mean Anomaly per frame (scaled)
+        a: a_scaled, e, i, omega, Omega, n, // Store all orbital elements
+        period: T_days,
+        orbitType: orbitType,
+        radius: radius,
+        diameter: diameter,
+        orbitLine: orbitLine // Store the orbit line for potential future control
+    };
+    
+    // Store in master list
+    allAsteroids.push(asteroidData); 
+    // Update dropdown
+    updateAsteroidDropdown();
+}
+
+
+
+// LOCATIONS
+function getAsteroidPosition(a, e, i, omega, Omega, M) {
+    // 1. Solve Kepler's Equation for Eccentric Anomaly (E)
+    const E = solveKepler(M, e);
+
+    // 2. Calculate position in the orbital plane (x', y')
+    const cosE = Math.cos(E);
+    const sinE = Math.sin(E);
+    
+    // x' and y' in AU (scaled)
+    const xprime = a * (cosE - e);
+    const yprime = a * Math.sqrt(Math.max(0, 1 - e * e)) * sinE;
+
+    // 3. Convert to Ecliptic Coordinates (xecl, yecl, zecl)
+    const { xecl, yecl, zecl } = toEcliptic(xprime, yprime, omega, Omega, i);
+
+    return new THREE.Vector3(xecl, yecl, zecl);
+}
+
+
+
+
+
+
+// === Control Panel Functions ===
+let selectedAsteroid = null;
+let cameraFollowing = false;
+function updateAsteroidDropdown() {
+    const select = document.getElementById('asteroidSelect');
+    if (!select) return;
+    
+    // Clear existing options except the first one
+    select.innerHTML = '<option value="">-- Choose an asteroid --</option>';
+    
+    // Sort asteroids alphabetically
+    const sortedAsteroids = [...allAsteroids].sort((a, b) => 
+        a.name.localeCompare(b.name)
+    );
+    
+    // Add asteroid options
+    sortedAsteroids.forEach((asteroid, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = asteroid.name;
+        select.appendChild(option);
+    });
+}
+
+function updateAsteroidInfo() {
+    const infoDiv = document.getElementById('asteroidInfo');
+    if (!infoDiv || !selectedAsteroid) {
+        infoDiv.innerHTML = '<div class="no-selection">No asteroid selected</div>';
+        return;
+    }
+    
+   // Safety check for orbitType
+    const orbitType = selectedAsteroid.orbitType || 'unknown';
+    const orbitTypeCapitalized = orbitType.charAt(0).toUpperCase() + orbitType.slice(1);
+    
+    // Calculate current speed in km/s (approximation)
+    // Note: Since speed control is removed, this reflects the simulation speed.
+    const speedKmS = (selectedAsteroid.speed / Speed_Factor * AU_KM).toFixed(2);
+    
+    infoDiv.innerHTML = `
+        <div class="info-item">
+            <span class="info-label">Name:</span>
+            <span class="info-value">${selectedAsteroid.name}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Orbit Type:</span>
+            <span class="info-value">
+                <span class="orbit-indicator orbit-${selectedAsteroid.orbitType}"></span>
+                ${orbitTypeCapitalized}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Current Speed:</span>
+            <span class="info-value">${speedKmS} km/s</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Radius (visual):</span>
+            <span class="info-value">${selectedAsteroid.radius.toFixed(2)} units</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Diameter:</span>
+            <span class="info-value">${selectedAsteroid.diameter.toFixed(2)} m</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Orbital Period:</span>
+            <span class="info-value">${(selectedAsteroid.period / (24 * 3600)).toFixed(1)} days</span>
+        </div>
+    `;
+}
+
+// Event listener for asteroid selection
+document.addEventListener('DOMContentLoaded', () => {
+    const select = document.getElementById('asteroidSelect');
+    const whatIfButtonContainer = document.getElementById('whatIfButtonContainer');
+    const whatIfButton = document.getElementById('whatIfButton');
+    const speedControlPanel = document.getElementById('speedControlPanel');
+    const selectedAsteroidName = document.getElementById('selectedAsteroidName');
+    const speedSlider = document.getElementById('speedSlider');
+    const speedValue = document.getElementById('speedValue');
+    const applySpeed = document.getElementById('applySpeed');
+    
+    if (select) {
+        select.addEventListener('change', (e) => {
+            const index = parseInt(e.target.value);
+            if (!isNaN(index) && allAsteroids[index]) {
+        selectedAsteroid = allAsteroids[index];
+        updateAsteroidInfo();
+        
+        // Show "What If" button
+        whatIfButtonContainer.style.display = 'block';
+        
+        // Hide speed control panel when new asteroid is selected
+        speedControlPanel.style.display = 'none';
+        
+        // Highlight the selected asteroid
+        highlightSelectedAsteroid();
+        
+        // Enable camera following
+        cameraFollowing = true;
+        controls.enableRotate = true; // Allow rotation around asteroid
+    }else {
+        selectedAsteroid = null;
+        updateAsteroidInfo();
+        clearHighlight();
+        
+        // Hide both button and panel
+        whatIfButtonContainer.style.display = 'none';
+        speedControlPanel.style.display = 'none';
+        
+        // Disable camera following
+        cameraFollowing = false;
+    }
+        });
+    }
+    
+    // "What If" button click handler
+if (whatIfButton) {
+    whatIfButton.addEventListener('click', () => {
+        if (selectedAsteroid) {
+            // Show speed control panel
+            speedControlPanel.style.display = 'block';
+            
+            // Update panel with asteroid name
+            selectedAsteroidName.textContent = `Asteroid: ${selectedAsteroid.name}`;
+            
+            // Reset slider to 1.0
+            speedSlider.value = 1;
+            speedValue.textContent = '1.00×';
+            
+            // Hide calculation result when opening panel
+            const calculationDiv = document.getElementById('speedCalculation');
+            if (calculationDiv) {
+                calculationDiv.style.display = 'none';
+            }
+            
+            // Scroll to the speed control panel
+            speedControlPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    });
+}
+    
+    // Speed slider handler
+    if (speedSlider) {
+        speedSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            speedValue.textContent = value.toFixed(2) + '×';
+        });
+    }
+
+
+    
+  // Apply speed button handler
+if (applySpeed) {
+        applySpeed.addEventListener('click', () => {
+        if (selectedAsteroid) {
+            const multiplier = parseFloat(speedSlider.value);
+            
+            // Store original parameters ONLY on first modification
+            if (!selectedAsteroid.originalA) {
+                selectedAsteroid.originalA = selectedAsteroid.a;
+                selectedAsteroid.originalE = selectedAsteroid.e;
+                selectedAsteroid.originalSpeed = selectedAsteroid.speed;
+                console.log(`Stored original values for ${selectedAsteroid.name}: a=${selectedAsteroid.originalA}, e=${selectedAsteroid.originalE}`);
+            }
+            
+            // Update orbit based on speed change (always from original)
+            updateOrbitAfterSpeedChange(selectedAsteroid, multiplier);
+            
+            // Display calculation
+            const calculationDiv = document.getElementById('speedCalculation');
+            const formulaElement = document.getElementById('calculationFormula');
+            const resultElement = document.getElementById('calculationResult');
+            
+            if (calculationDiv && formulaElement && resultElement) {
+                calculationDiv.style.display = 'block';
+                const originalSpeedKmS = (selectedAsteroid.originalSpeed / Speed_Factor * AU_KM);
+                const newSpeedKmS = originalSpeedKmS * multiplier;
+                formulaElement.textContent = `${multiplier.toFixed(2)} × ${originalSpeedKmS.toFixed(2)}`;
+                resultElement.textContent = `= ${newSpeedKmS.toFixed(2)} km/s`;
+            }
+            
+            // Update info panel
+            updateAsteroidInfo();
+            
+            // Reset time to restart orbit from pericenter
+            selectedAsteroid.time = 0;
+        }
+    });
+}
+
+});
+
+
+
+
+
+
+
+// Highlight selected asteroid
+let originalMaterial = null;
+
+function highlightSelectedAsteroid() {
+    // Clear previous highlight
+    clearHighlight();
+    
+    if (selectedAsteroid) {
+        // Store original material
+        originalMaterial = {
+            asteroid: selectedAsteroid,
+            material: selectedAsteroid.mesh.material
+        };
+        
+        // Create highlighted material
+        const highlightMaterial = new THREE.MeshStandardMaterial({
+            color: 'white',
+            metalness: 0.7,
+            roughness: 0.3,
+            emissive: 'white',
+            emissiveIntensity: 0.5,
+
+        });
+        
+        selectedAsteroid.mesh.material = highlightMaterial;
+    }
+}
+
+function clearHighlight() {
+    if (originalMaterial) {
+        originalMaterial.asteroid.mesh.material = originalMaterial.material;
+        originalMaterial = null;
+    }
+}
+
+
+
+
+
+// Event listener for asteroid selection
+document.addEventListener('DOMContentLoaded', () => {
+    const select = document.getElementById('asteroidSelect');
+    if (select) {
+        select.addEventListener('change', (e) => {
+            const index = parseInt(e.target.value);
+            if (!isNaN(index) && allAsteroids[index]) {
+                selectedAsteroid = allAsteroids[index];
+                updateAsteroidInfo();
+                
+
+                highlightSelectedAsteroid();
+            } else {
+                selectedAsteroid = null;
+                updateAsteroidInfo();
+                clearHighlight();
+
+            }
+        });
+    }
+    
+});
+
+
+
+// === Update Asteroid Positions (Generic) ===
+function updateAllAsteroidOrbits() {
+    allAsteroids.forEach(asteroid => {
+        // 1. Advance the time (M = n * t)
+        asteroid.time += asteroid.speed;
+        
+        // 2. Calculate the new Mean Anomaly (M)
+        // M = n * t. Since 'speed' is n * Speed_Factor, we need to adjust 'time'.
+        // Or, simply track M directly and increment by (n * dt * Speed_Factor)
+        // Let's use the stored 'n' and current 'time' (which represents t * Speed_Factor)
+        
+        // We'll use a simpler approach: 'time' tracks the Mean Anomaly (M) directly
+        // after incorporating the speed factor.
+        let M = asteroid.time; 
+
+        // 3. Calculate the new position
+        const pos = getAsteroidPosition(
+            asteroid.a, 
+            asteroid.e, 
+            asteroid.i, 
+            asteroid.omega, 
+            asteroid.Omega, 
+            M % (2 * Math.PI) // Keep M within 0 to 2*PI
+        );
+        asteroid.mesh.position.copy(pos);
+    });
+}
+
+
+
+
+
+
+// === Physics-Based Orbit Update ===
+function updateOrbitAfterSpeedChange(asteroid, speedMultiplier) {
+    const GM_sun = 1.327e11; // km^3/s^2 (Gravitational parameter)
+    
+    // Store original values on first modification
+    if (!asteroid.originalA) {
+        asteroid.originalA = asteroid.a;
+        asteroid.originalE = asteroid.e;
+        asteroid.originalN = asteroid.n;
+    }
+    
+    // Convert semi-major axis to km
+    const original_a_km = asteroid.originalA / (Position_Factor * SCALE_FACTOR * 20000) * AU_KM;
+    const original_e = asteroid.originalE;
+    
+    // Calculate perihelion distance (closest point to Sun)
+    const r_peri_km = original_a_km * (1 - original_e);
+    
+    // Calculate original velocity at perihelion using vis-viva equation
+    const v_peri_original = Math.sqrt((GM_sun / original_a_km) * ((1 + original_e) / (1 - original_e)));
+    
+    // New velocity at perihelion
+    const v_peri_new = v_peri_original * speedMultiplier;
+    
+    // Calculate new semi-major axis using vis-viva equation
+    // v² = GM(2/r - 1/a) => 1/a = 2/r - v²/GM
+    const new_a_inv = (2 / r_peri_km) - (v_peri_new * v_peri_new / GM_sun);
+    
+    let new_a_km, new_e;
+    
+    if (new_a_inv <= 0) {
+        // Hyperbolic or parabolic orbit (escape trajectory)
+        console.warn(`${asteroid.name}: Speed too high, orbit becomes hyperbolic`);
+        new_a_km = original_a_km * 2; // Fallback to larger orbit
+        new_e = 0.95; // High eccentricity
+    } else {
+        new_a_km = 1 / new_a_inv;
+        // Calculate new eccentricity: e = 1 - r_peri/a
+        new_e = 1 - (r_peri_km / new_a_km);
+    }
+    
+    // Clamp eccentricity to valid range
+    new_e = Math.max(0, Math.min(new_e, 0.99));
+    
+    // Convert back to simulation units
+    asteroid.a = (new_a_km / AU_KM) * Position_Factor * SCALE_FACTOR * 20000;
+    asteroid.e = new_e;
+    
+    // Calculate new orbital period using Kepler's third law
+    const new_T_seconds = 2 * Math.PI * Math.sqrt((new_a_km ** 3) / GM_sun);
+    asteroid.period = new_T_seconds / 86400; // Convert to days
+    
+    // Update mean motion
+    asteroid.n = 2 * Math.PI / new_T_seconds;
+    
+    // Update speed in simulation
+    asteroid.speed = asteroid.n * Speed_Factor;
+    
+    // Rebuild the orbit visualization
+    rebuildOrbitForAsteroid(asteroid);
+    
+    console.log(`${asteroid.name} orbit updated: a=${(new_a_km/AU_KM).toFixed(4)} AU, e=${new_e.toFixed(4)}, T=${asteroid.period.toFixed(1)} days`);
+}
+
+
+
+// === Rebuild Orbit Visualization ===
+function rebuildOrbitForAsteroid(asteroid) {
+    // Remove old orbit line
+    if (asteroid.orbitLine) {
+        scene.remove(asteroid.orbitLine);
+        asteroid.orbitLine.geometry.dispose();
+        asteroid.orbitLine.material.dispose();
+    }
+    
+    // Validate parameters
+    if (!asteroid.a || asteroid.a <= 0 || isNaN(asteroid.a)) {
+        console.error(`Invalid semi-major axis for ${asteroid.name}: ${asteroid.a}`);
+        return;
+    }
+    
+    // Generate new orbit path
+    const orbitPoints = [];
+    const steps = 360;
+    
+    for (let M_rad = 0; M_rad <= 2 * Math.PI; M_rad += (2 * Math.PI) / steps) {
+        const pos = getAsteroidPosition(
+            asteroid.a, 
+            asteroid.e, 
+            asteroid.i, 
+            asteroid.omega, 
+            asteroid.Omega, 
+            M_rad
+        );
+        orbitPoints.push(pos);
+    }
+    
+    // Create new orbit line
+    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+    
+    // Determine color based on orbit type
+    let color;
+    if (asteroid.e >= 1.0) {
+        color = 0xff00ff; // Magenta for hyperbolic
+    } else {
+        switch(asteroid.orbitType) {
+            case 'apollo': color = 0xff0000; break;  // Red
+            case 'amor': color = 0xff9900; break;    // Orange
+            case 'aten': color = 0x00ff00; break;    // Green
+            case 'atira': color = 0x00ffff; break;   // Cyan
+            default: color = 0xffffff;                // White
+        }
+    }
+    
+    const orbitMaterial = new THREE.LineBasicMaterial({ 
+        color: color, 
+        transparent: true, 
+        opacity: 0.6 
+    });
+    
+    asteroid.orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+    scene.add(asteroid.orbitLine);
+    
+    // Reset asteroid position to start of new orbit
+    const initialPos = getAsteroidPosition(
+        asteroid.a, asteroid.e, asteroid.i, 
+        asteroid.omega, asteroid.Omega, 0
+    );
+    asteroid.mesh.position.copy(initialPos);
+    asteroid.time = 0;
+}
+
+
+
+
+function renderloop() {
+    requestAnimationFrame(renderloop);
+
+    elapsedTime += ORBIT_SPEED;
+
+    // Update Earth 
+    const earthPos = getEarthPosition(elapsedTime);
+    earth.position.copy(earthPos);
+
+    // Update ALL asteroids on their respective orbits
+    updateAllAsteroidOrbits(); 
+
+    // Update control panel info if an asteroid is selected
+    if (selectedAsteroid) {
+        updateAsteroidInfo();
+    }
+    
+    // Camera following logic
+    if (cameraFollowing && selectedAsteroid) {
+        const asteroidPos = selectedAsteroid.mesh.position;
+        const offset = new THREE.Vector3(50, 30, 50); // Adjust these values for camera distance
+        const targetPos = asteroidPos.clone().add(offset);
+        
+        camera.position.lerp(targetPos, 0.1); // Smooth following
+        camera.lookAt(asteroidPos);
+        controls.target.copy(asteroidPos);
+    }
+    
+    controls.update();
+    renderer.render(scene, camera);
+}
+renderloop();

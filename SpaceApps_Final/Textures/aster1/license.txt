@@ -1,0 +1,11 @@
+Model Information:
+* title:	Asteriod 101955 Bennu
+* source:	https://sketchfab.com/3d-models/asteriod-101955-bennu-fb40c385aebc455d804d188103633b49
+* author:	Geo_Monkey (https://sketchfab.com/Geo_Monkey)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Asteriod 101955 Bennu" (https://sketchfab.com/3d-models/asteriod-101955-bennu-fb40c385aebc455d804d188103633b49) by Geo_Monkey (https://sketchfab.com/Geo_Monkey) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
